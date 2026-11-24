@@ -220,8 +220,8 @@ app.add_middleware(
         "https://glamstudio-admin.vercel.app", "https://glamstudio-admin.vercel.app",
         "https://glamstudio-sl8c.vercel.app", "https://glamstudio-sl8c.vercel.app",
         "https://glamstudio-booking.vercel.app", "https://glamstudio-booking.vercel.app",
-        "[https://glamstudio-7g3i.vercel.app](https://glamstudio-7g3i.vercel.app)",
-        "[https://glamstudio-sl8c.vercel.app](https://glamstudio-sl8c.vercel.app)"
+        "[https://glamstudio-admin.vercel.app](https://glamstudio-admin.vercel.app)",
+        "[https://glamstudio-booking.vercel.app](https://glamstudio-booking.vercel.app)"
     ],
     allow_credentials=True,
     allow_methods=["*"],
