@@ -216,12 +216,12 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://glamstudio-7g3i.vercel.app", "https://glamstudio-7g3i.vercel.app",
-        "https://glamstudio-admin.vercel.app", "https://glamstudio-admin.vercel.app",
-        "https://glamstudio-sl8c.vercel.app", "https://glamstudio-sl8c.vercel.app",
-        "https://glamstudio-booking.vercel.app", "https://glamstudio-booking.vercel.app",
-        "[https://glamstudio-admin.vercel.app](https://glamstudio-admin.vercel.app)",
-        "[https://glamstudio-booking.vercel.app](https://glamstudio-booking.vercel.app)"
+        "https://glamstudio-admin.vercel.app",
+        "https://glamstudio-booking.vercel.app",
+        "https://glamstudio-7g3i.vercel.app",
+        "https://glamstudio-sl8c.vercel.app",
+        "http://localhost:5173",
+        "http://localhost:5174",
     ],
     allow_credentials=True,
     allow_methods=["*"],
