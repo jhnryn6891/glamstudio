@@ -307,6 +307,7 @@ def send_otp_email(to_email: str, code: str) -> None:
         print(f"[RESEND ERROR] {response.status_code}: {response.text}", flush=True)
         raise HTTPException(status_code=502, detail="Failed to send verification email. Please try again.")
 
+
 @app.post("/api/auth/request-otp")
 def request_otp(payload: OTPRequest, session: Session = Depends(get_session)):
     clean_handle = normalize_handle(payload.contact_handle)
