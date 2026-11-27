@@ -1,4 +1,5 @@
 import os
+import httpx
 import time
 import random
 import hashlib
@@ -273,18 +274,38 @@ def minutes_to_time(minutes: int) -> str:
 # ================= OTP & AUTH ENDPOINTS =================
 
 @app.post("/api/auth/request-otp")
-def request_otp(payload: OTPRequest, session: Session = Depends(get_session)):
-    clean_handle = normalize_handle(payload.contact_handle)
-    existing = session.exec(select(ClientAccount).where(ClientAccount.contact_handle == clean_handle)).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="This contact is already registered. Please switch to Log In.")
+def send_otp_email(to_email: str, code: str) -> None:
+    api_key = os.getenv("RESEND_API_KEY")
+    if not api_key:
+        print(f"[OTP FALLBACK - NO RESEND KEY] {to_email} -> {code}", flush=True)
+        return
 
-    code = f"{random.randint(100000, 999999)}"
-    OTP_STORE[clean_handle] = {"code": code, "expires": time.time() + 300}
-    return {
-        "status": "otp_sent",
-        "message": f"6-digit verification code sent to your {payload.auth_method}."
-    }
+    response = httpx.post(
+        "https://api.resend.com/emails",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "from": "GlamStudio <onboarding@resend.dev>",
+            "to": [to_email],
+            "subject": f"{code} is your GlamStudio verification code",
+            "html": f"""
+            <div style="font-family: sans-serif; max-width: 420px; margin: auto; padding: 24px; border: 1px solid #eee; border-radius: 12px;">
+              <h2 style="margin: 0 0 8px;">GlamStudio Verification</h2>
+              <p style="color: #555;">Use this 6-digit code to finish creating your client account. It expires in 5 minutes:</p>
+              <div style="font-size: 32px; font-weight: bold; letter-spacing: 6px; padding: 16px; background: #faf5f7; text-align: center; border-radius: 8px; margin: 16px 0;">
+                {code}
+              </div>
+              <p style="font-size: 12px; color: #888;">If you didn't request this code, you can safely ignore this email.</p>
+            </div>
+            """,
+        },
+        timeout=10.0,
+    )
+    if response.status_code >= 400:
+        print(f"[RESEND ERROR] {response.status_code}: {response.text}", flush=True)
+        raise HTTPException(status_code=502, detail="Failed to send verification email. Please try again.")
 
 @app.post("/api/auth/signup")
 def signup_client(payload: ClientSignUp, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
@@ -619,3 +640,23 @@ def reject_flagged_booking(booking_id: int, session: Session = Depends(get_sessi
     session.add(booking)
     session.commit()
     return {"status": "rejected", "id": booking_id}
+
+@app.post("/api/auth/request-otp")
+def request_otp(payload: OTPRequest, session: Session = Depends(get_session)):
+    clean_handle = normalize_handle(payload.contact_handle)
+    existing = session.exec(select(ClientAccount).where(ClientAccount.contact_handle == clean_handle)).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="This contact is already registered. Please switch to Log In.")
+
+    code = f"{random.randint(100000, 999999)}"
+    OTP_STORE[clean_handle] = {"code": code, "expires": time.time() + 300}
+
+    if payload.auth_method == "email":
+        send_otp_email(clean_handle, code)
+    else:
+        print(f"[SMS OTP] {clean_handle} -> {code}", flush=True)
+
+    return {
+        "status": "otp_sent",
+        "message": f"6-digit verification code sent to your {payload.auth_method}."
+    }
