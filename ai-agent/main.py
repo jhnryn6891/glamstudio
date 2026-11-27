@@ -1,4 +1,5 @@
 import os
+from fastapi import BackgroundTasks
 import httpx
 import time
 import random
@@ -237,6 +238,17 @@ def on_startup():
             session.add(Review(name="Jessica Alba", comment="Absolute perfection! The glam lasted all night through the reception.", rating=5, approved=True))
             session.add(Review(name="Chloe Grace", comment="So professional and punctual. Loved the travel-to-you convenience!", rating=5, approved=True))
             session.commit()
+            background_tasks.add_task(
+             dispatch_booking_webhook,
+             "booking.created",
+            {
+               "booking_id": booking.id,
+               "client_name": booking.client_name,
+               "service": booking.service_name,
+               "payment_ref": booking.payment_reference,
+               "status": booking.status,
+            },
+)
     logger.info("GlamStudio Enterprise API v3.1 (Payment-Gated + Marketing Concierge) initialized.")
 
 def get_session():
@@ -270,6 +282,30 @@ def minutes_to_time(minutes: int) -> str:
     h = (minutes // 60) % 24
     m = minutes % 60
     return f"{h:02d}:{m:02d}"
+
+# ================= BACKGROUND TASKS & WEBHOOK EMITION =================
+
+def dispatch_booking_webhook(event_name: str, data: dict) -> None:
+    webhook_url = os.getenv("N8N_BOOKING_WEBHOOK_URL")
+    if not webhook_url:
+        return
+
+    headers = {"Content-Type": "application/json"}
+    secret = os.getenv("WEBHOOK_SECRET")
+    if secret:
+        headers["X-Webhook-Secret"] = secret
+
+    try:
+        resp = httpx.post(
+            webhook_url,
+            json={"event": event_name, "data": data},
+            headers=headers,
+            timeout=10.0,
+        )
+        if resp.status_code >= 400:
+            print(f"[WEBHOOK WARN] {event_name} -> {resp.status_code}: {resp.text}", flush=True)
+    except Exception as exc:
+        print(f"[WEBHOOK ERROR] {event_name} -> {exc}", flush=True)
 
 # ================= OTP & AUTH ENDPOINTS =================
 
