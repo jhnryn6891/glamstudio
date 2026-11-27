@@ -517,6 +517,27 @@ def create_booking(booking: BookingCreate, background_tasks: BackgroundTasks, se
     session.commit()
     session.refresh(db_booking)
 
+    background_tasks.add_task(
+        dispatch_booking_webhook,
+        "booking.created",
+        {
+            "booking_id": db_booking.id,
+            "client_name": db_booking.client_name,
+            "client_contact": db_booking.client_contact,
+            "event_type": db_booking.event_type,
+            "event_date": str(db_booking.event_date),
+            "start_time": str(db_booking.start_time),
+            "end_time": str(db_booking.end_time),
+            "head_count": db_booking.head_count,
+            "location_address": db_booking.location_address,
+            "payment_method": db_booking.payment_method,
+            "payment_reference": db_booking.payment_reference,
+            "downpayment_amount": db_booking.downpayment_amount,
+            "payment_status": db_booking.payment_status,
+            "status": db_booking.status,
+        },
+    )
+
     automated_reminders = [
         "1. Skin & Hair Prep: Please arrive with a clean, moisturized face (no heavy oils or leftover eye makeup) and dry hair.",
         "2. Setup Space: Kindly prepare a well-lit area near a power outlet and a comfortable chair for our lighting rig.",
@@ -677,21 +698,6 @@ def approve_review(review_id: int, session: Session = Depends(get_session)):
     review.approved = True
     session.add(review)
     session.commit()
-
-background_tasks.add_task(
-        dispatch_booking_webhook,
-        "booking.confirmed",
-        {
-            "booking_id": booking.id,
-            "client_name": booking.client_name,
-            "contact_handle": booking.contact_handle,
-            "service_name": booking.service_name,
-            "appointment_date": str(booking.appointment_date),
-            "appointment_time": str(booking.appointment_time),
-            "payment_reference": booking.payment_reference,
-            "status": booking.status,
-        },
-    )
 
 def confirm_flagged_booking(booking_id: int, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
     return {"status": "approved"}
