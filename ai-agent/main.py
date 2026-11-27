@@ -307,6 +307,26 @@ def send_otp_email(to_email: str, code: str) -> None:
         print(f"[RESEND ERROR] {response.status_code}: {response.text}", flush=True)
         raise HTTPException(status_code=502, detail="Failed to send verification email. Please try again.")
 
+@app.post("/api/auth/request-otp")
+def request_otp(payload: OTPRequest, session: Session = Depends(get_session)):
+    clean_handle = normalize_handle(payload.contact_handle)
+    existing = session.exec(select(ClientAccount).where(ClientAccount.contact_handle == clean_handle)).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="This contact is already registered. Please switch to Log In.")
+
+    code = f"{random.randint(100000, 999999)}"
+    OTP_STORE[clean_handle] = {"code": code, "expires": time.time() + 300}
+
+    if payload.auth_method == "email":
+        send_otp_email(clean_handle, code)
+    else:
+        print(f"[SMS OTP] {clean_handle} -> {code}", flush=True)
+
+    return {
+        "status": "otp_sent",
+        "message": f"6-digit verification code sent to your {payload.auth_method}."
+    }
+
 @app.post("/api/auth/signup")
 def signup_client(payload: ClientSignUp, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
     if not payload.agreed_to_terms:
@@ -640,23 +660,3 @@ def reject_flagged_booking(booking_id: int, session: Session = Depends(get_sessi
     session.add(booking)
     session.commit()
     return {"status": "rejected", "id": booking_id}
-
-@app.post("/api/auth/request-otp")
-def request_otp(payload: OTPRequest, session: Session = Depends(get_session)):
-    clean_handle = normalize_handle(payload.contact_handle)
-    existing = session.exec(select(ClientAccount).where(ClientAccount.contact_handle == clean_handle)).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="This contact is already registered. Please switch to Log In.")
-
-    code = f"{random.randint(100000, 999999)}"
-    OTP_STORE[clean_handle] = {"code": code, "expires": time.time() + 300}
-
-    if payload.auth_method == "email":
-        send_otp_email(clean_handle, code)
-    else:
-        print(f"[SMS OTP] {clean_handle} -> {code}", flush=True)
-
-    return {
-        "status": "otp_sent",
-        "message": f"6-digit verification code sent to your {payload.auth_method}."
-    }
