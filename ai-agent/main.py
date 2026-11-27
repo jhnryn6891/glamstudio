@@ -273,7 +273,6 @@ def minutes_to_time(minutes: int) -> str:
 
 # ================= OTP & AUTH ENDPOINTS =================
 
-@app.post("/api/auth/request-otp")
 def send_otp_email(to_email: str, code: str) -> None:
     api_key = os.getenv("RESEND_API_KEY")
     if not api_key:
