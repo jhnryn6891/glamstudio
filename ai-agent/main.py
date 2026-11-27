@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from fastapi import BackgroundTasks
 import httpx
 import time
@@ -295,15 +296,18 @@ def dispatch_booking_webhook(event_name: str, data: dict) -> None:
     if secret:
         headers["X-Webhook-Secret"] = secret
 
+    payload = {
+        "event": event_name,
+        "timestamp": datetime.utcnow().isoformat(),
+        "data": data,
+    }
+
     try:
-        resp = httpx.post(
-            webhook_url,
-            json={"event": event_name, "data": data},
-            headers=headers,
-            timeout=10.0,
-        )
+        resp = httpx.post(webhook_url, json=payload, headers=headers, timeout=10.0)
         if resp.status_code >= 400:
             print(f"[WEBHOOK WARN] {event_name} -> {resp.status_code}: {resp.text}", flush=True)
+        else:
+            print(f"[WEBHOOK SENT] {event_name} -> {resp.status_code}", flush=True)
     except Exception as exc:
         print(f"[WEBHOOK ERROR] {event_name} -> {exc}", flush=True)
 
@@ -673,6 +677,23 @@ def approve_review(review_id: int, session: Session = Depends(get_session)):
     review.approved = True
     session.add(review)
     session.commit()
+
+background_tasks.add_task(
+        dispatch_booking_webhook,
+        "booking.confirmed",
+        {
+            "booking_id": booking.id,
+            "client_name": booking.client_name,
+            "contact_handle": booking.contact_handle,
+            "service_name": booking.service_name,
+            "appointment_date": str(booking.appointment_date),
+            "appointment_time": str(booking.appointment_time),
+            "payment_reference": booking.payment_reference,
+            "status": booking.status,
+        },
+    )
+
+def confirm_flagged_booking(booking_id: int, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
     return {"status": "approved"}
 
 @app.patch("/api/admin/bookings/{booking_id}/confirm", dependencies=[Depends(verify_admin)])
@@ -684,6 +705,21 @@ def confirm_flagged_booking(booking_id: int, session: Session = Depends(get_sess
     booking.status = "confirmed"
     session.add(booking)
     session.commit()
+
+    background_tasks.add_task(
+        dispatch_booking_webhook,
+        "booking.confirmed",
+        {
+            "booking_id": booking.id,
+            "client_name": booking.client_name,
+            "contact_handle": booking.contact_handle,
+            "service_name": booking.service_name,
+            "appointment_date": str(booking.appointment_date),
+            "appointment_time": str(booking.appointment_time),
+            "payment_reference": booking.payment_reference,
+            "status": booking.status,
+        },
+    )
     return {"status": "verified_and_confirmed", "id": booking_id}
 
 @app.patch("/api/admin/bookings/{booking_id}/reject", dependencies=[Depends(verify_admin)])
